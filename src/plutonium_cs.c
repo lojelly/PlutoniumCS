@@ -351,13 +351,20 @@ int pluto_cs_clone_single_component(const void *const src, void *target, int typ
 
 					// when pointer and type match, add only that component to the target
 					void *target_comp = pluto_cs_add_component(target, info->type);
+					if(!target_comp)
+						return 0;
+
+					// run the clone function (if set)
+					if(info->clone)
+						info->clone(src_comp, target_comp);
+					// else, just copy normally
+					else
+						// copy src_comp into target_comp using the size in bytes set in pluto_cs_register(...)
+						memcpy(target_comp, src_comp, info->elem_size);
 
 					// if added successfully, return successfully
-					if(target_comp)
-					{
-						vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", type, target);
-						return 1;
-					}
+					vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", type, target);
+					return 1;
 				}
 			}
 		}
