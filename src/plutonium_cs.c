@@ -48,7 +48,6 @@ int pluto_cs_init()
 	}
 
 	dynas_init(&component_types);
-
 	if(!component_types.data)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component registry!\n");
@@ -131,23 +130,31 @@ int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn init_fn, plu
 
 	// init the object arrays in this type info
 	dynas_init(&info.components);
+	if(!info.components.data)
+	{
+		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
+		return 0;
+	}
 	dynas_init(&info.objs);
+	if(!info.objs.data)
+	{
+		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
+		return 0;
+	}
 
 	// check for bad alloc
 	if(!info.components.data)
 	{
-		vl_log(VL_ERROR, "Failed to allocate memory for component array!\n");
+		vl_log(VL_ERROR, "Failed to allocate memory for component array: type = %d!\n", type);
 		return 0;
 	}
 	if(!info.objs.data)
 	{
-		vl_log(VL_ERROR, "Failed to allocate memory for object array!\n");
+		vl_log(VL_ERROR, "Failed to allocate memory for object array: type = %d!\n", type);
 		return 0;
 	}
 
 	dynas_add(&component_types, info);
-
-	// check for realloc failure
 	if(!component_types.data)
 	{
 		vl_log(VL_ERROR, "Failed to realloc memory in component system!\n");
@@ -191,13 +198,23 @@ void *pluto_cs_add_component(void *obj, int type)
 	void *component = malloc(type_info->elem_size);
 	if(!component)
 	{
-		vl_log(VL_ERROR, "Failed to allocate memory for component!\n");
+		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
 		return NULL;
 	}
 
 	// add allocated pointer into instance array
 	dynas_add(&type_info->components, component);
+	if(!type_info->components.data)
+	{
+		vl_log(VL_ERROR, "Failed memory reallocation for component %d!\n", type);
+		return NULL;
+	}
 	dynas_add(&type_info->objs, obj);
+	if(!type_info->objs.data)
+	{
+		vl_log(VL_ERROR, "Failed memory rellocation for component %d!\n", type);
+		return NULL;
+	}
 
 	// component was successfully allocated, init it
 	type_info->init(component, obj);
