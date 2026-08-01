@@ -15,6 +15,11 @@
 #endif
 
 /**
+  Represents the invalid component type.
+*/
+#define PLUTO_CS_INVALID_COMPONENT -1
+
+/**
   For components, they require an init function
   in the registry so PlutoniumCS knows how to instantiate
   each one when requested. The init function should
@@ -30,11 +35,10 @@ typedef void (*pluto_cs_init_fn) (void *component, void *owner);
   A component's clone function copies the component's data/attributes
   into another component of the same type.
 
-  @param src The original component that was cloned.
   @param target The component obtaining the cloned data/attributes.
-  @param new_owner The new owner of the target component.
+  @param src The original component that was cloned.
 */
-typedef void (*pluto_cs_clone_fn) (const void *const src, void *target, void *new_owner);
+typedef void (*pluto_cs_clone_fn) (void *target, const void *const src);
 
 /**
   Initializes the PlutoniumCS library.
@@ -60,8 +64,11 @@ PLUTO_CS_API void pluto_cs_shutdown(void);
   example, sizeof(my_component).
   @param init_fn The init function for the component. See
   pluto_cs_init_fn.
-  @param clone_fn The clone function for the component. See
-  pluto_cs_clone_fn.
+  @param clone_fn The clone function for the component. Unlike
+  the initialization function, the clone function can be NULL.
+  When it is NULL, PlutoniumCS copies the raw data automatically.
+  The clone function can be used to add custom cloning functionality if
+  desired. See pluto_cs_clone_fn.
 
   @see pluto_cs_init_fn
   @see pluto_cs_clone_fn
@@ -105,29 +112,45 @@ PLUTO_CS_API bool pluto_cs_check_component(const void *const obj, int type);
 PLUTO_CS_API void *pluto_cs_get_component(const void *const obj, int type);
 
 /**
+  Obtains the owner of a valid component.
+
+  @important You must only pass in components
+  returned by PlutoniumCS functions!
+*/
+PLUTO_CS_API void *pluto_cs_get_owner(const void *const component);
+/**
+  Obtains the type of a component.
+
+  @important You must only pass in components
+  returned by PlutoniumCS functions!
+
+  @return PLUTO_CS_INVALID_COMPONENT if the function fails,
+  a valid component type if it succeeds.
+*/
+PLUTO_CS_API int pluto_cs_get_type(const void *const component);
+
+/**
   Clones a specific component from one object
   and adds it to another object.
 
   @param src The source object to clone from.
   @param target The object obtaining the cloned component.
-  @param new_owner The new owner of the target component.
   @param type The component type.
 
   @return 1 on success, 0 on failure.
 
   @see pluto_cs_clone_all_components(const void *const, void*)
 */
-PLUTO_CS_API int pluto_cs_clone_single_component(const void *const src, void *target, void *new_owner, int type);
+PLUTO_CS_API int pluto_cs_clone_single_component(const void *const src, void *target, int type);
 /**
   Clones components from one object and adds them
   to another object.
 
   @param src The source object to clone.
   @param target The object to add the cloned components to.
-  @param new_owner The new owner of the target component.
 
   @return 1 on success, 0 on failure.
 
   @see pluto_cs_clone_single_component(const void *const, void*, int)
 */
-PLUTO_CS_API int pluto_cs_clone_all_components(const void *const src, void *target, void *new_owner);
+PLUTO_CS_API int pluto_cs_clone_all_components(const void *const src, void *target);

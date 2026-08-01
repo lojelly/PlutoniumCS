@@ -34,6 +34,13 @@ typedef struct component_type_info_arr
 	size_t size, capacity;
 } component_type_info_arr;
 
+// component header information
+typedef struct component_header
+{
+	void *owner;
+	int type;
+} component_header;
+
 
 static component_type_info_arr component_types = {0};
 static bool init = false;
@@ -74,7 +81,11 @@ void pluto_cs_shutdown()
 
 		// free each component in the instances array:
 		for(size_t j = 0; j < info->components.size; ++j)
-			free(info->components.data[j]);
+		{
+			void *component = info->components.data[j];
+			component_header *header = ((component_header*) component) - 1;
+			free(header);
+		}
 
 		// free the whole instances array
 		dynas_free(&info->components);
@@ -110,11 +121,6 @@ int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn init_fn, plu
 	if(!init_fn)
 	{
 		vl_log(VL_ERROR, "Registering a component requires the init function to be a valid pointer!\n");
-		return 0;
-	}
-	if(!clone_fn)
-	{
-		vl_log(VL_ERROR, "Registering a component requires the clone function to be valid pointer!\n");
 		return 0;
 	}
 
@@ -200,7 +206,12 @@ void *pluto_cs_add_component(void *obj, int type)
 	}
 
 	// init instance of type
-	void *component = malloc(type_info->elem_size);
+	size_t component_malloc_size = sizeof(component_header) + type_info->elem_size;
+	component_header *component = calloc(1, component_malloc_size);
+
+	component->owner = obj;
+	component->type = type;
+
 	if(!component)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
@@ -226,7 +237,7 @@ void *pluto_cs_add_component(void *obj, int type)
 
 	vl_log(VL_SUCCESS, "Added component %d to obj %p\n", type, obj);
 
-	return component;
+	return component + 1;
 }
 
 int pluto_cs_remove_component(void *obj, int type)
@@ -265,7 +276,8 @@ int pluto_cs_remove_component(void *obj, int type)
 	dynas_remove_item(&type_info->objs, obj);
 
 	// free component (was allocated in add_component(...))
-	free(component);
+	component_header *header = ((component_header*) component) - 1;
+	free(header);
 
 	vl_log(VL_SUCCESS, "Removed component %d from obj %p!\n", type, obj);
 
@@ -330,7 +342,32 @@ void *pluto_cs_get_component(const void *const obj, int type)
 	return NULL;
 }
 
-int pluto_cs_clone_single_component(const void *const src, void *target, void *new_owner, int type)
+void *pluto_cs_get_owner(const void *const component)
+{
+	if(!component)
+	{
+		vl_log(VL_ERROR, "Cannot obtain owner of null component!\n");
+		return NULL;
+	}
+
+	component_header *header = ((component_header*) component) - 1;
+
+	return header->owner;
+}
+int pluto_cs_get_type(const void *const component)
+{
+	if(!component)
+	{
+		vl_log(VL_ERROR, "Cannot obtain owner of null component!\n");
+		return PLUTO_CS_INVALID_COMPONENT;
+	}
+
+	component_header *header = ((component_header*) component) - 1;
+
+	return header->type;
+}
+
+int pluto_cs_clone_single_component(const void *const src, void *target, int type)
 {
 	if(!init)
 	{
@@ -360,7 +397,7 @@ int pluto_cs_clone_single_component(const void *const src, void *target, void *n
 		for(size_t j = 0; j < info->components.size; ++j)
 		{
 			// match pointer to src
-			if(info->objs.data[i] == src)
+			if(info->objs.data[j] == src)
 			{
 				// match type first
 				if(info->type == type)
@@ -369,15 +406,19 @@ int pluto_cs_clone_single_component(const void *const src, void *target, void *n
 					   if it's NULL or not since the if-blocks
 					   above guarantee it won't be NULL)
 					*/
-					const void *const src_comp = pluto_cs_get_component(src, info->type);
+					const void *const src_comp = info->components.data[j];
 
 					// when pointer and type match, add only that component to the target
 					void *target_comp = pluto_cs_add_component(target, info->type);
 					if(!target_comp)
 						return 0;
 
-					// run the clone function
-					info->clone(src_comp, target_comp, new_owner);
+					// run the clone function (if set)
+					if(info->clone)
+						info->clone(target_comp, src_comp);
+					// else just copy raw data
+					else
+						memcpy(target_comp, src_comp, info->elem_size);
 
 					// if added successfully, return successfully
 					vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", type, target);
@@ -391,7 +432,7 @@ int pluto_cs_clone_single_component(const void *const src, void *target, void *n
 
 	return 0;
 }
-int pluto_cs_clone_all_components(const void *const src, void *target, void *new_owner)
+int pluto_cs_clone_all_components(const void *const src, void *target)
 {
 	if(!init)
 	{
@@ -424,15 +465,19 @@ int pluto_cs_clone_all_components(const void *const src, void *target, void *new
 			if(info->objs.data[j] == src)
 			{
 				// get source component (guaranteed to be non-null pointer)
-				const void *const src_comp = pluto_cs_get_component(src, info->type);
+				const void *const src_comp = info->components.data[j];
 
 				// when pointer matches, add the same component to the target obj
 				void *target_comp = pluto_cs_add_component(target, info->type);
 				if(!target_comp)
 					return 0;
 
-				// run the clone function
-				info->clone(src_comp, target_comp, new_owner);
+				// run the clone function (if set)
+				if(info->clone)
+					info->clone(target_comp, src_comp);
+				// else just copy raw data
+				else
+					memcpy(target_comp, src_comp, info->elem_size);
 
 				vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", info->type, target);
 			}
