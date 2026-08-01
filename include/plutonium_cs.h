@@ -32,8 +32,9 @@ typedef void (*pluto_cs_init_fn) (void *component, void *owner);
 
   @param src The original component that was cloned.
   @param target The component obtaining the cloned data/attributes.
+  @param new_owner The new owner of the target component.
 */
-typedef void (*pluto_cs_clone_fn) (const void *const src, void *target);
+typedef void (*pluto_cs_clone_fn) (const void *const src, void *target, void *new_owner);
 
 /**
   Initializes the PlutoniumCS library.
@@ -59,11 +60,8 @@ PLUTO_CS_API void pluto_cs_shutdown(void);
   example, sizeof(my_component).
   @param init_fn The init function for the component. See
   pluto_cs_init_fn.
-  @param clone_fn The clone function for the component. This function,
-  unlike the init function, is optional. When the clone function is NULL
-  here, PlutoniumCS automatically copies components normally. The clone
-  function can be used to add extra steps to the cloning process if necessary.
-  See pluto_cs_clone_fn.
+  @param clone_fn The clone function for the component. See
+  pluto_cs_clone_fn.
 
   @see pluto_cs_init_fn
   @see pluto_cs_clone_fn
@@ -112,22 +110,24 @@ PLUTO_CS_API void *pluto_cs_get_component(const void *const obj, int type);
 
   @param src The source object to clone from.
   @param target The object obtaining the cloned component.
+  @param new_owner The new owner of the target component.
   @param type The component type.
 
   @return 1 on success, 0 on failure.
 
   @see pluto_cs_clone_all_components(const void *const, void*)
 */
-PLUTO_CS_API int pluto_cs_clone_single_component(const void *const src, void *target, int type);
+PLUTO_CS_API int pluto_cs_clone_single_component(const void *const src, void *target, void *new_owner, int type);
 /**
   Clones components from one object and adds them
   to another object.
 
   @param src The source object to clone.
   @param target The object to add the cloned components to.
+  @param new_owner The new owner of the target component.
 
   @return 1 on success, 0 on failure.
 
   @see pluto_cs_clone_single_component(const void *const, void*, int)
 */
-PLUTO_CS_API int pluto_cs_clone_all_components(const void *const src, void *target);
+PLUTO_CS_API int pluto_cs_clone_all_components(const void *const src, void *target, void *new_owner);

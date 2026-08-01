@@ -112,6 +112,11 @@ int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn init_fn, plu
 		vl_log(VL_ERROR, "Registering a component requires the init function to be a valid pointer!\n");
 		return 0;
 	}
+	if(!clone_fn)
+	{
+		vl_log(VL_ERROR, "Registering a component requires the clone function to be valid pointer!\n");
+		return 0;
+	}
 
 	// see if type already registered
 	if(find_component_type(type))
@@ -325,7 +330,7 @@ void *pluto_cs_get_component(const void *const obj, int type)
 	return NULL;
 }
 
-int pluto_cs_clone_single_component(const void *const src, void *target, int type)
+int pluto_cs_clone_single_component(const void *const src, void *target, void *new_owner, int type)
 {
 	if(!init)
 	{
@@ -371,13 +376,8 @@ int pluto_cs_clone_single_component(const void *const src, void *target, int typ
 					if(!target_comp)
 						return 0;
 
-					// run the clone function (if set)
-					if(info->clone)
-						info->clone(src_comp, target_comp);
-					// else, just copy normally
-					else
-						// copy src_comp into target_comp using the size in bytes set in pluto_cs_register(...)
-						memcpy(target_comp, src_comp, info->elem_size);
+					// run the clone function
+					info->clone(src_comp, target_comp, new_owner);
 
 					// if added successfully, return successfully
 					vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", type, target);
@@ -391,7 +391,7 @@ int pluto_cs_clone_single_component(const void *const src, void *target, int typ
 
 	return 0;
 }
-int pluto_cs_clone_all_components(const void *const src, void *target)
+int pluto_cs_clone_all_components(const void *const src, void *target, void *new_owner)
 {
 	if(!init)
 	{
@@ -431,13 +431,8 @@ int pluto_cs_clone_all_components(const void *const src, void *target)
 				if(!target_comp)
 					return 0;
 
-				// run the clone function (if set)
-				if(info->clone)
-					info->clone(src_comp, target_comp);
-				// else, just copy normally
-				else
-					// copy src_comp into target_comp using the size in bytes set in pluto_cs_register(...):
-					memcpy(target_comp, src_comp, info->elem_size);
+				// run the clone function
+				info->clone(src_comp, target_comp, new_owner);
 
 				vl_log(VL_INFO, "   ^ Cloned component %d and added to obj %p!\n", info->type, target);
 			}
