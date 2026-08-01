@@ -14,7 +14,7 @@ typedef struct component_type_info
 {
 	// array of object pointers (match-to-instances)
 	obj_arr objs;
-	// instances of this component
+	// component headers (matched to object pointers directly above)
 	obj_arr components;
 	// size of component in bytes
 	size_t elem_size;
@@ -81,11 +81,7 @@ void pluto_cs_shutdown()
 
 		// free each component in the instances array:
 		for(size_t j = 0; j < info->components.size; ++j)
-		{
-			void *component = info->components.data[j];
-			component_header *header = ((component_header*) component) - 1;
-			free(header);
-		}
+			free(info->components.data[j]);
 
 		// free the whole instances array
 		dynas_free(&info->components);
@@ -153,18 +149,6 @@ int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn init_fn, plu
 		return 0;
 	}
 
-	// check for bad alloc
-	if(!info.components.data)
-	{
-		vl_log(VL_ERROR, "Failed to allocate memory for component array: type = %d!\n", type);
-		return 0;
-	}
-	if(!info.objs.data)
-	{
-		vl_log(VL_ERROR, "Failed to allocate memory for object array: type = %d!\n", type);
-		return 0;
-	}
-
 	dynas_add(&component_types, info);
 	if(!component_types.data)
 	{
@@ -205,39 +189,41 @@ void *pluto_cs_add_component(void *obj, int type)
 		return NULL;
 	}
 
-	// init instance of type
-	size_t component_malloc_size = sizeof(component_header) + type_info->elem_size;
-	component_header *component = calloc(1, component_malloc_size);
-
-	component->owner = obj;
-	component->type = type;
-
-	if(!component)
+	component_header *header = calloc(1, sizeof(component_header) + type_info->elem_size);
+	if(!header)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
 		return NULL;
 	}
 
+	header->owner = obj;
+	header->type = type;
+
 	// add allocated pointer into instance array
-	dynas_add(&type_info->components, component);
+	dynas_add(&type_info->components, header);
 	if(!type_info->components.data)
 	{
 		vl_log(VL_ERROR, "Failed memory reallocation for component %d!\n", type);
+		free(header);
 		return NULL;
 	}
 	dynas_add(&type_info->objs, obj);
 	if(!type_info->objs.data)
 	{
-		vl_log(VL_ERROR, "Failed memory rellocation for component %d!\n", type);
+		vl_log(VL_ERROR, "Failed memory reallocation for component %d!\n", type);
+		free(header);
 		return NULL;
 	}
 
+	// the actual component's memory is equal to header + sizeof(header)
+	void *actual_component = header + 1;
+
 	// component was successfully allocated, init it
-	type_info->init(component);
+	type_info->init(actual_component);
 
 	vl_log(VL_SUCCESS, "Added component %d to obj %p\n", type, obj);
 
-	return component + 1;
+	return actual_component;
 }
 
 int pluto_cs_remove_component(void *obj, int type)
@@ -268,15 +254,16 @@ int pluto_cs_remove_component(void *obj, int type)
 		return 0;
 	}
 
-	// get component from object
-	void *component = pluto_cs_get_component(obj, type);
+	// get component from object (this is not the component header)
+	void *actual_component = pluto_cs_get_component(obj, type);
+	// get component header
+	component_header *header = ((component_header*) actual_component) - 1;
 
 	// remove component from array
-	dynas_remove_item(&type_info->components, component);
+	dynas_remove_item(&type_info->components, header);
 	dynas_remove_item(&type_info->objs, obj);
 
-	// free component (was allocated in add_component(...))
-	component_header *header = ((component_header*) component) - 1;
+	// free whole component pointer (including header)
 	free(header);
 
 	vl_log(VL_SUCCESS, "Removed component %d from obj %p!\n", type, obj);
@@ -306,7 +293,7 @@ bool pluto_cs_check_component(const void *const obj, int type)
 	for(size_t i = 0; i < info->components.size; ++i)
 	{
 		// match type of the current instance with pointer in the instance
-		if(info->type == type && info->objs.data[i] == obj)
+		if(info->objs.data[i] == obj)
 			return true;
 	}
 
@@ -335,8 +322,13 @@ void *pluto_cs_get_component(const void *const obj, int type)
 	for(size_t i = 0; i < info->components.size; ++i)
 	{
 		// if type and object pointer match, return that component
-		if(info->type == type && info->objs.data[i] == obj)
-			return info->components.data[i];
+		if(info->objs.data[i] == obj)
+		{
+			// get component header
+			component_header *header = info->components.data[i];
+			// return actual component after header
+			return header + 1;
+		}
 	}
 
 	return NULL;
@@ -406,7 +398,8 @@ int pluto_cs_clone_single_component(const void *const src, void *target, int typ
 					   if it's NULL or not since the if-blocks
 					   above guarantee it won't be NULL)
 					*/
-					const void *const src_comp = info->components.data[j];
+					const component_header *const src_header = info->components.data[j];
+					const void *const src_comp = src_header + 1;
 
 					// when pointer and type match, add only that component to the target
 					void *target_comp = pluto_cs_add_component(target, info->type);
@@ -465,7 +458,8 @@ int pluto_cs_clone_all_components(const void *const src, void *target)
 			if(info->objs.data[j] == src)
 			{
 				// get source component (guaranteed to be non-null pointer)
-				const void *const src_comp = info->components.data[j];
+				const component_header *const src_header = info->components.data[j];
+				const void *const src_comp = src_header + 1;	
 
 				// when pointer matches, add the same component to the target obj
 				void *target_comp = pluto_cs_add_component(target, info->type);
