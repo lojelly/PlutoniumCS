@@ -233,7 +233,7 @@ void *pluto_cs_add_component(void *obj, int type)
 	}
 
 	// component was successfully allocated, init it
-	type_info->init(component, obj);
+	type_info->init(component);
 
 	vl_log(VL_SUCCESS, "Added component %d to obj %p\n", type, obj);
 

@@ -26,10 +26,8 @@
   just return an instance of the component.
 
   @param component The component to initialize.
-  @param owner The object pointer that is paired with the
-  component; the object that owns this component.
 */
-typedef void (*pluto_cs_init_fn) (void *component, void *owner);
+typedef void (*pluto_cs_init_fn) (void *component);
 
 /**
   A component's clone function copies the component's data/attributes
