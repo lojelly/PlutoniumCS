@@ -65,6 +65,10 @@ int pluto_cs_init()
 	vl_log(VL_SUCCESS, "Initialized PlutoniumCS!\n");
 	return 1;
 }
+bool pluto_cs_is_init()
+{
+	return init;
+}
 void pluto_cs_shutdown()
 {
 	if(!init)

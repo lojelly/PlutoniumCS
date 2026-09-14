@@ -14,6 +14,8 @@
 	#define PLUTO_CS_API
 #endif
 
+#include <stddef.h>
+
 /**
   Represents the invalid component type.
 */
@@ -44,6 +46,10 @@ typedef void (*pluto_cs_clone_fn) (void *target, const void *const src);
   @return 1 on success, 0 on failure.
 */
 PLUTO_CS_API int pluto_cs_init(void);
+/**
+  Determines if PlutoniumCS has been initialized yet.
+*/
+PLUTO_CS_API bool pluto_cs_is_init(void);
 /**
   Shuts down the PlutoniumCS library.
 */
