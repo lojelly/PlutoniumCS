@@ -91,6 +91,12 @@ PLUTO_CS_API int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn
   @return A valid component pointer on success, NULL on failure.
 */
 PLUTO_CS_API void *pluto_cs_add_component(void *obj, int type);
+/**
+  Only adds a component to an object if it doesn't already have it.
+
+  @see pluto_cs_add_component(void*, int)
+*/
+PLUTO_CS_API void *pluto_cs_try_add_component(void *obj, int type);
 
 /**
   Removes a component/component extension from an object.

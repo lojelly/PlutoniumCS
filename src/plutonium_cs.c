@@ -7,6 +7,7 @@ typedef struct obj_arr
 {
 	void **data;
 	size_t size, capacity;
+	bool alloc_failure;
 } obj_arr;
 
 // info for each component TYPE in the system
@@ -32,6 +33,7 @@ typedef struct component_type_info_arr
 	// array containing component info
 	component_type_info *data;
 	size_t size, capacity;
+	bool alloc_failure;
 } component_type_info_arr;
 
 // component header information
@@ -55,7 +57,7 @@ int pluto_cs_init()
 	}
 
 	dynas_init(&component_types);
-	if(!component_types.data)
+	if(component_types.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component registry!\n");
 		return 0;
@@ -141,20 +143,20 @@ int pluto_cs_register(int type, size_t size_bytes, pluto_cs_init_fn init_fn, plu
 
 	// init the object arrays in this type info
 	dynas_init(&info.components);
-	if(!info.components.data)
+	if(info.components.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
 		return 0;
 	}
 	dynas_init(&info.objs);
-	if(!info.objs.data)
+	if(info.objs.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed to allocate memory for component %d!\n", type);
 		return 0;
 	}
 
 	dynas_add(&component_types, info);
-	if(!component_types.data)
+	if(component_types.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed to realloc memory in component system!\n");
 		return 0;
@@ -205,14 +207,14 @@ void *pluto_cs_add_component(void *obj, int type)
 
 	// add allocated pointer into instance array
 	dynas_add(&type_info->components, header);
-	if(!type_info->components.data)
+	if(type_info->components.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed memory reallocation for component %d!\n", type);
 		free(header);
 		return NULL;
 	}
 	dynas_add(&type_info->objs, obj);
-	if(!type_info->objs.data)
+	if(type_info->objs.alloc_failure)
 	{
 		vl_log(VL_ERROR, "Failed memory reallocation for component %d!\n", type);
 		free(header);
@@ -228,6 +230,14 @@ void *pluto_cs_add_component(void *obj, int type)
 	vl_log(VL_SUCCESS, "Added component %d to obj %p\n", type, obj);
 
 	return actual_component;
+}
+void *pluto_cs_try_add_component(void *obj, int type)
+{
+	void *comp = pluto_cs_get_component(obj, type);
+	if(!comp)
+		return pluto_cs_add_component(obj, type);
+	else
+		return comp;
 }
 
 int pluto_cs_remove_component(void *obj, int type)
